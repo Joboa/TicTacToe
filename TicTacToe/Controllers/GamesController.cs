@@ -148,9 +148,9 @@ namespace TicTacToe.Controllers
             return Ok("Move registered successfully");
         }
 
-                // Register player movement
-        [HttpPost("{id}/players/{playerId}/moves")]
-        public ActionResult RegisterPlayerMove(int id, int playerId, [FromBody] MoveDto moveDto)
+         // Register player moves
+        [HttpPost("{id}/player/{playerId}/moves")]
+        public ActionResult RecordPlayerMove(int id, int playerId, [FromBody] MoveDto moveDto)
         {
             // Find the player
             var player = _dbContext.Players.FirstOrDefault(p => p.Id == playerId);
