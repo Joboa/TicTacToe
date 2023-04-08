@@ -148,6 +148,126 @@ namespace TicTacToe.Controllers
             return Ok("Move registered successfully");
         }
 
+                // Register player movement
+        [HttpPost("{id}/players/{playerId}/moves")]
+        public ActionResult RegisterPlayerMove(int id, int playerId, [FromBody] MoveDto moveDto)
+        {
+            // Find the player
+            var player = _dbContext.Players.FirstOrDefault(p => p.Id == playerId);
+            if (player == null)
+            {
+                return NotFound("Player not found");
+            }
+
+            // Find game
+            var game = _dbContext.Games
+                            .Include(g => g.Player1)
+                            .Include(g => g.Player2)
+                            .FirstOrDefault(g => g.Id == id);
+
+            if (game == null)
+            {
+                return NotFound("Game not found");
+            }
+
+            // Check if the player is one of the players in the game
+            if (player != game.Player1 && player != game.Player2)
+            {
+                return BadRequest("Player is not part of this game");
+            }
+
+            // Game variables
+            var currentPlayer = game.CurrentPlayer;
+            var player1Id = game.Player1Id;
+            var player2Id = game.Player2Id;
+            var gameBoard = game.GameBoard;
+
+            // Check if the game has ended
+            if (game.Winner != "")
+            {
+                return BadRequest("Game has already ended");
+            }
+
+            // Check if it is a player's turn
+            if (!IsPlayerTurn(game, playerId))
+            {
+                return BadRequest($"It is {game.CurrentPlayer}'s turn");
+            }
+
+            // Check if gameboard position is occupied
+            if (gameBoard[moveDto.BoardRow][moveDto.BoardColumn] != "-")
+            {
+                return BadRequest("This position is already occupied");
+            }
+
+            // Update the game board with the player's move
+            gameBoard[moveDto.BoardRow][moveDto.BoardColumn] = currentPlayer;
+
+            // Check if the player's move has won the game
+            if (CheckForWinner(gameBoard, currentPlayer))
+            {
+                game.Winner = currentPlayer;
+                RegisterMoves(game.Id, playerId, moveDto.BoardRow, moveDto.BoardColumn);
+                return Ok($"Move registered successfully. {currentPlayer} wins!");
+            }
+            else if (CheckForDraw(gameBoard))
+            {
+                game.Winner = "Draw";
+                RegisterMoves(game.Id, playerId, moveDto.BoardRow, moveDto.BoardColumn);
+                return Ok("Draw! No one wins");
+            }
+            else
+            {
+                // Switch the current player
+                game.CurrentPlayer = currentPlayer == "X" ? "O" : "X";
+            }
+
+            // Register the moves and associate it with the game and player
+            RegisterMoves(game.Id, playerId, moveDto.BoardRow, moveDto.BoardColumn);
+           
+            return Ok("Move registered successfully");
+        }
+
+        // Get all running games
+        [HttpGet]
+        public ActionResult<IEnumerable<object>> GetRunningGames()
+        {
+            var gamesList = _dbContext.Games
+                .Select(g => new
+                {
+                    GameId = g.Id,
+                    Player1 = new
+                    {
+                        g.Player1.Name,
+                        Moves = _dbContext.PlayerMoves
+                                                .Count(pm => pm.GameId == g.Id && pm.PlayerId == g.Player1Id),
+                        LastMove = _dbContext.PlayerMoves
+                                                .OrderByDescending(pm => pm.MoveTime)
+                                                .Where(pm => pm.GameId == g.Id && pm.PlayerId == g.Player1Id)
+                                                .Select(pm => new { pm.BoardRow, pm.BoardColumn, pm.MoveTime })
+                                                .FirstOrDefault()
+                    },
+                    Player2 = new
+                    {
+                        g.Player2.Name,
+                        Moves = _dbContext.PlayerMoves
+                                                .Count(pm => pm.GameId == g.Id && pm.PlayerId == g.Player2Id),
+                        LastMove = _dbContext.PlayerMoves
+                                                .OrderByDescending(pm => pm.MoveTime)
+                                                .Where(pm => pm.GameId == g.Id && pm.PlayerId == g.Player2Id)
+                                                .Select(pm => new { pm.BoardRow, pm.BoardColumn, pm.MoveTime })
+                                                .FirstOrDefault()
+                    },
+                    NumMoves = _dbContext.PlayerMoves.Count(pm => pm.GameId == g.Id),
+                    g.Winner,
+                    Board = g.GameBoard
+                })
+                .ToList();
+
+
+            return Ok(gamesList);
+        }
+
         private static bool IsPlayerTurn(Game game, int playerId)
         {
             var currentPlayer = game.CurrentPlayer;
