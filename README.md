@@ -1,5 +1,5 @@
 # TicTacToe
-To run the system on a development computer (using Visual Studio Code), follow these steps:
+To run the game on a development computer (using Visual Studio Code), follow these steps:
 
 1. Clone the repository to your local machine using the following command:
 
